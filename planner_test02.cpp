@@ -67,10 +67,13 @@ static double elapse_time (timeval &st, timeval &et)
 
 int report (std::string experiment)
 {
-    int i;
+    int i, start;
     std::cout << "Experiment: " << experiment << std::endl;
     std::cout << "Overlap-Factor";
-    for (i = 1024; i < (million + 1) ; i = i << 1) {
+    size_t sz = exp_data.begin ()->second.size ();
+    start = million >> (sz - 1);
+    std::cout << "start: " << start;
+    for (i = start; i < (million + 1) ; i = i << 1) {
         std::cout << ", " << i;
     }
     std::cout << std::endl;
@@ -209,8 +212,7 @@ int test_avail_time_perf ()
     ss.str ("");
 
     for (auto count : count_vector) {
-        //for (end = 4096; end < (2*million + 1); end = end << 1) {
-        for (end = 4096; end < (4906 + 1); end = end << 1) {
+        for (end = 32768; end < (2*million + 1); end = end << 1) {
             ctx = planner_new (0, INT64_MAX, resource_totals, resource_types, len);
             int overlap_factor = resource_totals[0]/count;
             std::vector<int64_t> spans;
@@ -232,11 +234,10 @@ int test_avail_time_perf ()
             t = planner_avail_time_first (ctx, 0+1, 1, (const uint64_t *)&count, len);
             bo = (bo || t == -1);
             while (j < 1024 && t != -1) {
-                std::cout << end << ": " << count << ":" << j << ":" << t << std::endl;
                 t = planner_avail_time_next (ctx);
                 bo = (bo || t == -1);
                 //if (bo)
-                    std::cout << end << ": " << count << ":" << j << ":" << t << std::endl;
+                //    std::cout << end << ": " << count << ":" << j << ":" << t << std::endl;
                 j++;
             }
             gettimeofday (&et, NULL);
