@@ -34,7 +34,6 @@ extern "C" {
 
 #define PLANNER_NUM_TYPES 5
 
-typedef struct span span_t;
 typedef struct planner planner_t;
 
 /*! Construct a planner.
@@ -51,15 +50,14 @@ typedef struct planner planner_t;
  *  \param resource_types
  *                      string array of size len where each element contains
  *                      the resource type corresponding to each corresponding
- *                      element in the resource_counts array.
- *  \param len          length of the resource_counts and resource_types array;
- *
+ *                      element in the resource_totals array.
+ *  \param len          length of the resource_totals and resource_types arrays;
  *                      must not exceed PLANNER_NUM_TYPES.
  *  \return             new planner context; NULL on an error with errno set
  *                      as follows:
  *                      0 on success; -1 on an error with errno set:
  *                          EINVAL: invalid argument.
- *                          ERANGE: resource_counts contain an out-of-range value.
+ *                          ERANGE: resource_totals contains an out-of-range value.
  */
 planner_t *planner_new (int64_t base_time, uint64_t duration,
                         const uint64_t *resource_totals,
@@ -78,7 +76,7 @@ int planner_reset (planner_t *ctx, int64_t base_time, uint64_t duration);
 
 /*! Destroy the planner.
  *
- *  \param ctx_p        pointer to a planner context pointer returned
+ *  \param ctx_p        pointer to a planner context pointer returned.
  *                      from planner_new
  *
  */
@@ -86,7 +84,7 @@ void planner_destroy (planner_t **ctx_p);
 
 /*! Getters:
  *  \return             -1 or NULL on an error with errno set as follows:
- *                         EINVAL: invalid argument
+ *                         EINVAL: invalid argument.
  */
 int64_t planner_base_time (planner_t *ctx);
 int64_t planner_duration (planner_t *ctx);
@@ -104,13 +102,13 @@ const char *planner_resource_type_at (planner_t *ctx, unsigned int i);
  *
  *  Note on semantics: this function returns a time point where the resource state
  *  changes. If the number of available resources change at time point t1 and
- *  t2 (assuming t 2 is greater than t1+2), the possible schedule point that this
+ *  t2 (assuming t2 is greater than t1+2), the possible schedule points that this
  *  function can return is either t1 or t2, but not t1+1 nor t1+2 even if these
- *  points can also satisfy the request.
+ *  points also satisfy the request.
  *
- *  \param ctx          opaque planner context returned from planner_new
- *  \param on_or_after  available on or after the specified time
- *  \param duration     requested duration; must be greater than or equal to 1
+ *  \param ctx          opaque planner context returned from planner_new.
+ *  \param on_or_after  available on or after the specified time.
+ *  \param duration     requested duration; must be greater than or equal to 1.
  *  \param resource_counts
  *                      64-bit unsigned integer array of size len specifying
  *                      the requested resource counts.
@@ -130,11 +128,10 @@ int64_t planner_avail_time_first (planner_t *ctx, int64_t on_or_after,
  *  planner_avail_time_next can be satisfied.  Same semantics as
  *  planner_avail_time_first.
  *
- *  \param ctx          opaque planner context returned from planner_new
+ *  \param ctx          opaque planner context returned from planner_new.
  *  \return             earliest time at which the request can be satisfied;
  *                      -1 on an error with errno set as follows:
  *                          EINVAL: invalid argument.
- *                          ERANGE: resource_counts contain an out-of-range value.
  */
 int64_t planner_avail_time_next (planner_t *ctx);
 
@@ -150,7 +147,7 @@ int64_t planner_avail_time_next (planner_t *ctx);
  *                      64-bit unsigned integer array of size len specifying
  *                      the requested resource counts.
  *  \param len          length of resource_counts and resource_types arrays.
- *                      Must not exceed PLANNER_NUM_TYPES.
+ *                      must not exceed PLANNER_NUM_TYPES.
  *  \return             earliest time at which the request can be satisfied;
  *                      -1 on an error with errno set as follows:
  *                          EINVAL: invalid argument.
@@ -160,13 +157,13 @@ int64_t planner_avail_time_next (planner_t *ctx);
 int planner_avail_during (planner_t *ctx, int64_t at, uint64_t duration,
                           const uint64_t *resource_counts, size_t len);
 
-/*! Return how many ith resources are available for the duration starting from at
+/*! Return how many ith resources are available for the duration starting from at.
  *
  *  \param ctx          opaque planner context returned from planner_new.
  *  \param at           instant time for which this query is made.
  *  \param duration     requested duration; must be greater than or equal to 1.
  *  \param i            index of the resource type to queried; must be less than
- *                      PLANNER_NUM_TYPES
+ *                      PLANNER_NUM_TYPES.
  *  \return             available resource count; -1 on an error with errno set
  *                      as follows:
  *                          EINVAL: invalid argument.
@@ -175,7 +172,7 @@ int64_t planner_avail_resources_during (planner_t *ctx, int64_t at,
                                         uint64_t duration, unsigned int i);
 
 /*! Return how many resources of resource_type are available for the duration
- *  starting from at
+ *  starting from at.
  *
  *
  *  \param ctx          opaque planner context returned from planner_new.
@@ -191,14 +188,14 @@ int64_t planner_avail_resources_during_by_type (planner_t *ctx, int64_t at,
                                                 uint64_t duration,
                                                 const char *resource_type);
 
-/*! Return how many resources of resource_type are available for the duration
- *  starting from at
+/*! Return how many resources are available for the duration starting from at.
  *
  *
  *  \param ctx          opaque planner context returned from planner_new.
  *  \param at           instant time for which this query is made.
  *  \param duration     requested duration; must be greater than or equal to 1.
- *  \param resources    resources array buffer to copy resources.
+ *  \param resources    resources array buffer to copy and return available counts
+ *                      into.
  *  \return             available resource count; -1 on an error with errno set
  *                      as follows:
  *                          EINVAL: invalid argument.
@@ -207,7 +204,7 @@ int planner_avail_resources_array_during (planner_t *ctx, int64_t at,
                                           uint64_t duration, int64_t *resources,
                                           size_t len);
 
-/*! Return how many resources are available at the given time
+/*! Return how many resources of ith type is available at the given time.
  *
  *  \param ctx          opaque planner context returned from planner_new.
  *  \param at           instant time for which this query is made.
@@ -220,25 +217,28 @@ int planner_avail_resources_array_during (planner_t *ctx, int64_t at,
 int64_t planner_avail_resources_at (planner_t *ctx, int64_t at, unsigned int i);
 
 
-/*! Return how many resources are available at the given time by resource type
+/*! Return how many resources of resource_type are available at the given instant
+ *  time.
  *
  *  \param ctx          opaque planner context returned from planner_new.
  *  \param at           instant time for which this query is made.
  *  \param resource_type
- *                      the resource type to queried.
- *  \return             available resource count; -1 on an error with errno set as follows:
+ *                      the resource type to be queried.
+ *  \return             available resource count; -1 on an error with errno set
+ *                      as follows:
  *                          EINVAL: invalid argument.
  */
 int64_t planner_avail_resources_at_by_type (planner_t *ctx, int64_t at,
                                             const char *resource_type);
 
 
-/*! Return how many resources are available at the given time
+/*! Return how many resources are available at the given instant time.
  *
  *  \param ctx          opaque planner context returned from planner_new.
  *  \param at           instant time for which this query is made.
- *  \param resources    resources array buffer to copy resources into
- *  \param len          len of resources array
+ *  \param resources    resources array buffer to copy and return available
+ *                      counts into.
+ *  \param len          length of resources array.
  *  \return             0 on success; -1 on an error with errno set as follows:
  *                          EINVAL: invalid argument.
  */
@@ -274,7 +274,7 @@ int64_t planner_add_span (planner_t *ctx, int64_t start_time, uint64_t duration,
  *  to return the earliest schedulable point.
  *
  *  \param ctx          opaque planner context returned from planner_new.
- *  \param span_id      span_id returned from spanner_add_span.
+ *  \param span_id      span_id returned from planner_add_span.
  *  \return             0 on success; -1 on an error with errno set as follows:
  *                          EINVAL: invalid argument.
  *                          EKEYREJECTED: span could not be removed from

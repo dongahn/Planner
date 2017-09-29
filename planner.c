@@ -38,8 +38,7 @@
 #define START(node) ((node)->start)
 #define LAST(node)  ((node)->last)
 
-typedef struct rb_root rb_root_t;
-typedef struct rb_node rb_node_t;
+typedef struct span span_t;
 typedef int64_t resource_array_t[PLANNER_NUM_TYPES];
 typedef char *resource_type_array_t[PLANNER_NUM_TYPES];
 
@@ -55,8 +54,8 @@ typedef struct request {
  *  tree.
  */
 typedef struct scheduled_point {
-    rb_node_t point_rb;          /* BST node for scheduled point tree */
-    rb_node_t resource_rb;       /* BST node for min-time resource tree */
+    struct rb_node point_rb;     /* BST node for scheduled point tree */
+    struct rb_node resource_rb;  /* BST node for min-time resource tree */
     int64_t subtree_min;         /* Min time of the subtree of this node */
     int64_t at;                  /* Resource-state changing time */
     int in_mt_resource_tree;     /* 1 when inserted in min-time resource tree */
@@ -87,8 +86,8 @@ struct planner {
     size_t dimension;            /* size of the above arrays */
     int64_t plan_start;          /* base time of the planner */
     int64_t plan_end;            /* end time of the planner */
-    rb_root_t sched_point_tree;  /* scheduled point red-black tree */
-    rb_root_t mt_resource_tree;  /* minimum-time resource tree */
+    struct rb_root sched_point_tree;  /* scheduled point rb tree */
+    struct rb_root mt_resource_tree;  /* min-time resrouce rb tree */
     scheduled_point_t *p0;       /* system's scheduled point at base time */
     zhashx_t *span_lookup;       /* span lookup table by string id */
     zhash_t *avail_time_iter;    /* tracking nodes temporarily deleted from MTR */
@@ -111,7 +110,7 @@ struct planner {
  *******************************************************************************/
 static scheduled_point_t *scheduled_point_search (int64_t t, struct rb_root *root)
 {
-    rb_node_t *node = root->rb_node;
+    struct rb_node *node = root->rb_node;
     while (node) {
         scheduled_point_t *this_data = NULL;
         this_data = container_of (node, scheduled_point_t, point_rb);
@@ -141,7 +140,7 @@ static inline scheduled_point_t *recent_state (scheduled_point_t *new_data,
 static scheduled_point_t *scheduled_point_state (int64_t at, struct rb_root *root)
 {
     scheduled_point_t *last_state = NULL;
-    rb_node_t *node = root->rb_node;
+    struct rb_node *node = root->rb_node;
     while (node) {
         scheduled_point_t *this_data = NULL;
         this_data = container_of (node, scheduled_point_t, point_rb);
@@ -158,10 +157,11 @@ static scheduled_point_t *scheduled_point_state (int64_t at, struct rb_root *roo
     return last_state;
 }
 
-static int scheduled_point_insert (scheduled_point_t *new_data, rb_root_t *root)
+static int scheduled_point_insert (scheduled_point_t *new_data,
+                                   struct rb_root *root)
 {
-    rb_node_t **link = &(root->rb_node);
-    rb_node_t *parent = NULL;
+    struct rb_node **link = &(root->rb_node);
+    struct rb_node *parent = NULL;
     while (*link) {
         scheduled_point_t *this_data = NULL;
         this_data  = container_of (*link, scheduled_point_t, point_rb);
@@ -192,7 +192,7 @@ static int scheduled_point_remove (scheduled_point_t *data, struct rb_root *root
     return rc;
 }
 
-static void scheduled_points_destroy (rb_node_t *node)
+static void scheduled_points_destroy (struct rb_node *node)
 {
     if (node->rb_left)
         scheduled_points_destroy (node->rb_left);
@@ -225,7 +225,7 @@ static int64_t mintime_resource_subtree_min (scheduled_point_t *point)
     return min;
 }
 
-static void mintime_resource_propagate (rb_node_t *n, rb_node_t *stop)
+static void mintime_resource_propagate (struct rb_node *n, struct rb_node *stop)
 {
     int64_t subtree_min;
     while (n != stop) {
@@ -238,14 +238,14 @@ static void mintime_resource_propagate (rb_node_t *n, rb_node_t *stop)
     }
 }
 
-static void mintime_resource_copy (rb_node_t *src, rb_node_t *dst)
+static void mintime_resource_copy (struct rb_node *src, struct rb_node *dst)
 {
     scheduled_point_t *o = rb_entry (src, scheduled_point_t, resource_rb);
     scheduled_point_t *n = rb_entry (dst, scheduled_point_t, resource_rb);
     n->subtree_min = o->subtree_min;
 }
 
-static void mintime_resource_rotate (rb_node_t *src, rb_node_t *dst)
+static void mintime_resource_rotate (struct rb_node *src, struct rb_node *dst)
 {
     scheduled_point_t *o = rb_entry (src, scheduled_point_t, resource_rb);
     scheduled_point_t *n = rb_entry (dst, scheduled_point_t, resource_rb);
@@ -271,11 +271,11 @@ static int64_t rescmp (const int64_t *s1, const resource_array_t s2, size_t len)
 }
 
 static void mintime_resource_insert (scheduled_point_t *new_data,
-                                     unsigned int len, rb_root_t *root)
+                                     unsigned int len, struct rb_root *root)
 {
-    rb_node_t **link = &(root->rb_node);
+    struct rb_node **link = &(root->rb_node);
     scheduled_point_t *this_data = NULL;
-    rb_node_t *parent = NULL;
+    struct rb_node *parent = NULL;
     while (*link) {
         this_data = rb_entry (*link, scheduled_point_t, resource_rb);
         parent = *link;
@@ -293,16 +293,17 @@ static void mintime_resource_insert (scheduled_point_t *new_data,
                          &mintime_resource_aug_cb);
 }
 
-static void mintime_resource_remove (scheduled_point_t *data, rb_root_t *root)
+static void mintime_resource_remove (scheduled_point_t *data,
+                                     struct rb_root *root)
 {
     rb_erase_augmented (&data->resource_rb, root, &mintime_resource_aug_cb);
     data->in_mt_resource_tree = 0;
 }
 
-static int64_t right_branch_mintime (rb_node_t *n)
+static int64_t right_branch_mintime (struct rb_node *n)
 {
     int64_t min_time = INT64_MAX;
-    rb_node_t *right = n->rb_right;
+    struct rb_node *right = n->rb_right;
     if (right)
         min_time = rb_entry (right, scheduled_point_t, resource_rb)->subtree_min;
 
@@ -310,7 +311,8 @@ static int64_t right_branch_mintime (rb_node_t *n)
     return  (this_data->at < min_time)? this_data->at : min_time;
 }
 
-static scheduled_point_t *find_mintime_point (rb_node_t *anchor, int64_t min_time)
+static scheduled_point_t *find_mintime_point (struct rb_node *anchor,
+                                              int64_t min_time)
 {
     if (!anchor)
         return NULL;
@@ -320,7 +322,7 @@ static scheduled_point_t *find_mintime_point (rb_node_t *anchor, int64_t min_tim
     if (this_data->at == min_time)
         return this_data;
 
-    rb_node_t *node = anchor->rb_right;
+    struct rb_node *node = anchor->rb_right;
     while (node) {
         this_data = rb_entry (node, scheduled_point_t, resource_rb);
         if (this_data->at == min_time)
@@ -340,9 +342,10 @@ static scheduled_point_t *find_mintime_point (rb_node_t *anchor, int64_t min_tim
 }
 
 static int64_t find_mintime_anchor (const int64_t *ra, size_t len,
-                                    rb_root_t *mtrt, rb_node_t **anchor_p)
+                                    struct rb_root *mtrt,
+                                    struct rb_node **anchor_p)
 {
-    rb_node_t *node = mtrt->rb_node;
+    struct rb_node *node = mtrt->rb_node;
     int64_t min_time = INT64_MAX;
     int64_t right_min_time = INT64_MAX;
     while (node) {
@@ -373,9 +376,9 @@ static int64_t find_mintime_anchor (const int64_t *ra, size_t len,
 }
 
 static scheduled_point_t *mintime_resource_mintime (const int64_t *ra, size_t len,
-                                                    rb_root_t *mtrt)
+                                                    struct rb_root *mtrt)
 {
-    rb_node_t *anchor = NULL;
+    struct rb_node *anchor = NULL;
     int64_t min_time = find_mintime_anchor (ra, len, mtrt, &anchor);
     return find_mintime_point (anchor, min_time);
 }
@@ -398,7 +401,7 @@ static int track_points (zhash_t *tracker, scheduled_point_t *point)
 static void restore_track_points (planner_t *ctx)
 {
     scheduled_point_t *point = NULL;
-    rb_root_t *root = &(ctx->mt_resource_tree);
+    struct rb_root *root = &(ctx->mt_resource_tree);
     zlist_t *keys = zhash_keys (ctx->avail_time_iter);
     const char *k = NULL;
     for (k = zlist_first (keys); k; k = zlist_next (keys)) {
@@ -412,7 +415,7 @@ static void restore_track_points (planner_t *ctx)
 static void update_mintime_resource_tree (planner_t *ctx, zlist_t *list)
 {
     scheduled_point_t *point = NULL;
-    rb_root_t *mtrt = &(ctx->mt_resource_tree);
+    struct rb_root *mtrt = &(ctx->mt_resource_tree);
     for (point = zlist_first (list); point; point = zlist_next (list)) {
         if (point->in_mt_resource_tree)
             mintime_resource_remove (point, mtrt);
@@ -434,10 +437,10 @@ static void copy_req (request_t *dest, int64_t on_or_after, uint64_t duration,
 
 static scheduled_point_t *get_or_new_point (planner_t *ctx, int64_t at)
 {
-    rb_root_t *spt = &(ctx->sched_point_tree);
+    struct rb_root *spt = &(ctx->sched_point_tree);
     scheduled_point_t *point = NULL;
     if ( !(point = scheduled_point_search (at, spt))) {
-        rb_root_t *mtrt = &(ctx->mt_resource_tree);
+        struct rb_root *mtrt = &(ctx->mt_resource_tree);
         scheduled_point_t *state = scheduled_point_state (at, spt);
         point = xzmalloc (sizeof (*point));
         point->at = at;
@@ -455,14 +458,14 @@ static scheduled_point_t *get_or_new_point (planner_t *ctx, int64_t at)
 static void fetch_overlap_points (planner_t *ctx, int64_t at, uint64_t duration,
                                   zlist_t *list)
 {
-    rb_root_t *spr = &(ctx->sched_point_tree);
+    struct rb_root *spr = &(ctx->sched_point_tree);
     scheduled_point_t *point = scheduled_point_state (at, spr);
     while (point) {
         if (point->at >= (at + (int64_t)duration))
             break;
         else if (point->at >= at)
             zlist_append (list, (void *)point);
-        rb_node_t *n = rb_next (&(point->point_rb));
+        struct rb_node *n = rb_next (&(point->point_rb));
         point = rb_entry (n, scheduled_point_t, point_rb);
     }
 }
@@ -514,9 +517,9 @@ static bool span_ok (planner_t *ctx, scheduled_point_t *start_point,
                      size_t len)
 {
     bool ok = true;
-    rb_root_t *mtrt = &(ctx->mt_resource_tree);
+    struct rb_root *mtrt = &(ctx->mt_resource_tree);
     scheduled_point_t *next_point = NULL;
-    rb_node_t *n = &(start_point->point_rb);
+    struct rb_node *n = &(start_point->point_rb);
     while ((next_point = rb_entry (n, scheduled_point_t, point_rb))) {
          if (next_point->at >= (start_point->at + (int64_t)duration)) {
              ok = true;
@@ -537,7 +540,7 @@ static int64_t avail_at (planner_t *ctx, int64_t on_or_after, uint64_t duration,
 {
     int64_t at = -1;
     scheduled_point_t *start_point = NULL;
-    rb_root_t *mt = &(ctx->mt_resource_tree);
+    struct rb_root *mt = &(ctx->mt_resource_tree);
     while ((start_point = mintime_resource_mintime (resource_counts, len, mt))) {
         at = start_point->at;
         if (at < on_or_after) {
@@ -560,7 +563,7 @@ static bool avail_during (planner_t *ctx, int64_t at, uint64_t duration,
                           const int64_t *resource_counts, size_t len)
 {
     bool ok = true;
-    rb_root_t *spr = NULL;
+    struct rb_root *spr = NULL;
     if ((at + duration) > ctx->plan_end) {
         errno = ERANGE;
         return -1;
@@ -576,7 +579,7 @@ static bool avail_during (planner_t *ctx, int64_t at, uint64_t duration,
             ok = false;
             break;
         }
-        rb_node_t *n = rb_next (&(point->point_rb));
+        struct rb_node *n = rb_next (&(point->point_rb));
         point = rb_entry (n, scheduled_point_t, point_rb);
     }
     return ok;
@@ -585,7 +588,7 @@ static bool avail_during (planner_t *ctx, int64_t at, uint64_t duration,
 static scheduled_point_t *avail_resources_during (planner_t *ctx, int64_t at,
                                                   uint64_t duration)
 {
-    rb_root_t *spr = NULL;
+    struct rb_root *spr = NULL;
 
     if ((at + duration) > ctx->plan_end) {
         errno = ERANGE;
@@ -602,7 +605,7 @@ static scheduled_point_t *avail_resources_during (planner_t *ctx, int64_t at,
                           PLANNER_NUM_TYPES) > 0) {
           min = point;
         }
-        rb_node_t *n = rb_next (&(point->point_rb));
+        struct rb_node *n = rb_next (&(point->point_rb));
         point = rb_entry (n, scheduled_point_t, point_rb);
     }
     return min;
@@ -642,7 +645,7 @@ static void initialize (planner_t *ctx, int64_t base_time, uint64_t duration)
 static inline void erase (planner_t *ctx)
 {
     int i = 0;
-    rb_node_t *n = NULL;
+    struct rb_node *n = NULL;
     if (ctx->span_lookup)
         zhashx_purge (ctx->span_lookup);
     zhashx_destroy (&(ctx->span_lookup));
@@ -990,7 +993,7 @@ int planner_avail_resources_array_during (planner_t *ctx, int64_t at,
 
 int64_t planner_avail_resources_at (planner_t *ctx, int64_t at, unsigned int i)
 {
-    rb_root_t *spt = NULL;
+    struct rb_root *spt = NULL;
     scheduled_point_t *state = NULL;
     if (!ctx || at > ctx->plan_end || i >= PLANNER_NUM_TYPES) {
         errno = EINVAL;
@@ -1005,7 +1008,7 @@ int64_t planner_avail_resources_at_by_type (planner_t *ctx, int64_t at,
                                             const char *resource_type)
 {
     unsigned int i = 0;
-    rb_root_t *spt = NULL;
+    struct rb_root *spt = NULL;
     scheduled_point_t *state = NULL;
     if (!ctx || at > ctx->plan_end) {
         errno = EINVAL;
@@ -1024,7 +1027,7 @@ int64_t planner_avail_resources_at_by_type (planner_t *ctx, int64_t at,
 int planner_avail_resources_array_at (planner_t *ctx, int64_t at,
                                       int64_t *resources, size_t len)
 {
-    rb_root_t *spt = NULL;
+    struct rb_root *spt = NULL;
     scheduled_point_t *state = NULL;
     if (!ctx || at > ctx->plan_end || len > ctx->dimension) {
         errno = EINVAL;
