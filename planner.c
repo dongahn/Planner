@@ -585,7 +585,6 @@ static bool avail_during (planner_t *ctx, int64_t at, uint64_t duration,
 static scheduled_point_t *avail_resources_during (planner_t *ctx, int64_t at,
                                                   uint64_t duration)
 {
-    bool ok = true;
     rb_root_t *spr = NULL;
 
     if ((at + duration) > ctx->plan_end) {
@@ -598,7 +597,6 @@ static scheduled_point_t *avail_resources_during (planner_t *ctx, int64_t at,
     scheduled_point_t *min = point;
     while (point) {
         if (point->at >= (at + (int64_t)duration)) {
-            ok = true;
             break;
         } else if (rescmp(min->remaining, point->remaining,
                           PLANNER_NUM_TYPES) > 0) {
@@ -1066,6 +1064,7 @@ int64_t planner_add_span (planner_t *ctx, int64_t start_time,
     start_point->new_point = 0;
     span->start_p = start_point;
     last_point->new_point = 0;
+    last_point->ref_count++;
     span->last_p = last_point;
 
     update_mintime_resource_tree (ctx, list);

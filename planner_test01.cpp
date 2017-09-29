@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <string>
+#include <cstring>
 #include <cerrno>
 #include <vector>
 #include <map>
@@ -38,7 +39,7 @@ static void to_stream (int64_t base_time, uint64_t duration, const uint64_t *cnt
         ss << "B(" << base_time << "):";
 
     ss << "D(" << duration << "):" << "R(<";
-    for (int i = 0; i < len; ++i)
+    for (unsigned int i = 0; i < len; ++i)
         ss << types[i] << "(" << cnts[i] << ")";
 
     ss << ">)";
@@ -50,7 +51,7 @@ static void ordered_counts (planner_t *plan,
 {
     size_t len = planner_resources_len (plan);
     const char **resource_types = planner_resource_types (plan);
-    for (int i = 0; i < len; ++i) {
+    for (unsigned int i = 0; i < len; ++i) {
         if (unordered.find (resource_types[i]) != unordered.end ())
             ordered.push_back (unordered[resource_types[i]]);
         else
@@ -60,7 +61,7 @@ static void ordered_counts (planner_t *plan,
 
 static int test_planner_getters ()
 {
-    int i = 0;
+    unsigned int i = 0;
     size_t len = 5;
     bool bo = false;
     int64_t rc = -1;
@@ -686,7 +687,7 @@ static int test_resource_service_flow ()
 
         // Determine the earliest scheduleable point on or after the time, at
         t = planner_avail_time_first (global, at, duration, &(o[0]), o.size ());
-        bo = (bo || t != (at + (i/L1_size)*duration));
+        bo = (bo || t != (int64_t)(at + (i/L1_size)*duration));
 
         // Descend/Reserve lower-level resource at this schedule point
         rc = planner_avail_during (locals[k], t, duration, &(totals[j]), 1);
